@@ -1,20 +1,41 @@
 <?php
 
 class Employee {
+    private string $name;
+    private int $id;
     private Company $mainJob;
     private ?Company $secondJob;
 
-    public function __construct(Company $mainJob, ?Company $secondJob = null) {
+    public function __construct(string $name, int $id, Company $mainJob, ?Company $secondJob = null) {
+        $this->name = $name;
+        $this->id = $id;
         $this->mainJob = $mainJob;
         $this->secondJob = $secondJob;
+    }
+
+    public function getDetails(): string {
+        $jobs = $this->mainJob->getName();
+        if ($this->secondJob) {
+            $jobs .= ', ' . $this->secondJob->getName();
+        }
+        return "従業員名: {$this->name}, ID: {$this->id}, 勤務先: {$jobs}";
     }
 }
 
 class Company {
+    private string $name;
     private array $employees = [];
     private array $boardMembers = [];
     private ?Company $parentCompany = null;
     private array $subsidiaries = [];
+
+    public function __construct(string $name) {
+        $this->name = $name;
+    }
+
+    public function getName(): string {
+        return $this->name;
+    }
 
     public function addEmployee(Employee $employee): void {
         $this->employees[] = $employee;
@@ -26,57 +47,78 @@ class Company {
         }
     }
 
-    // 親会社の設定（0または1つ）
     public function setParentCompany(?Company $company): void {
         $this->parentCompany = $company;
     }
 
-    // 子会社の追加（複数可）
     public function addSubsidiary(Company $company): void {
         if (!in_array($company, $this->subsidiaries, true)) {
             $this->subsidiaries[] = $company;
-            // 子会社側にも親会社を設定することで関連性を双方向で保つ
             $company->setParentCompany($this);
         }
     }
 
-    // 循環参照を許可（子会社が自分自身を子会社に持つことも可能）
     public function addSelfAsSubsidiary(): void {
         $this->addSubsidiary($this);
+    }
+
+    public function displayHierarchy(int $level = 0): void {
+        echo str_repeat('--', $level) . $this->name . PHP_EOL;
+        foreach ($this->subsidiaries as $subsidiary) {
+            if ($subsidiary !== $this) {
+                $subsidiary->displayHierarchy($level + 1);
+            } else {
+                echo str_repeat('--', $level + 1) . "(自己参照) {$this->name}" . PHP_EOL;
+            }
+        }
     }
 }
 
 class BoardMember {
+    private string $name;
+    private string $position;
     private array $companiesManaging = [];
+
+    public function __construct(string $name, string $position) {
+        $this->name = $name;
+        $this->position = $position;
+    }
 
     public function setCompany(Company $company, int $position): void {
         if ($position >= 0 && $position < 5) {
             $this->companiesManaging[$position] = $company;
         }
     }
+
+    public function getDetails(): string {
+        $companies = array_map(fn($c) => $c->getName(), $this->companiesManaging);
+        $companiesList = implode(', ', $companies);
+        return "役員名: {$this->name}, 役職: {$this->position}, 管理企業: {$companiesList}";
+    }
 }
 
-// メイン処理で要件をシミュレーション
-$company1 = new Company();
-$company2 = new Company();
-$company3 = new Company();
+// シミュレーションの実行
+$company1 = new Company("会社A");
+$company2 = new Company("会社B");
+$company3 = new Company("会社C");
 
-// 従業員が複数の会社に勤務可能
-$employee = new Employee($company1, $company2);
+$employee = new Employee("山田太郎", 1001, $company1, $company2);
 $company1->addEmployee($employee);
 $company2->addEmployee($employee);
 
-// 役員が複数会社の管理に関与可能
-$boardMember = new BoardMember();
+$boardMember = new BoardMember("佐藤一郎", "CEO");
 $company1->setBoardMember($boardMember, 0);
-$boardMember->setCompany($company2, 0);
+$boardMember->setCompany($company1, 0);
+$boardMember->setCompany($company2, 1);
 
-// 子会社と親会社の関係を設定
-$company1->addSubsidiary($company2); // 会社1 → 会社2
-$company2->addSubsidiary($company3); // 会社2 → 会社3（孫会社の例）
-
-// 循環参照の例（会社が自社を子会社として設定可能）
+$company1->addSubsidiary($company2);
+$company2->addSubsidiary($company3);
 $company3->addSelfAsSubsidiary();
 
-// これにより以下の関係が実現:
-// company1 → company2 → company3 → company3 (自社を含む再帰構造)
+// 組織構造の表示
+echo "企業の階層構造:" . PHP_EOL;
+$company1->displayHierarchy();
+
+// 従業員と役員の詳細を表示
+echo PHP_EOL . $employee->getDetails() . PHP_EOL;
+echo $boardMember->getDetails() . PHP_EOL;
